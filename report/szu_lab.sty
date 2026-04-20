@@ -1,0 +1,68 @@
+% ============================================================
+%   szu_lab.sty —— 深圳大学实验报告样式文件
+%   （学生不需要修改此文件）
+% ============================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{szu_lab}[2025/03/23 SZU Lab Report Style]
+
+% ---------- 依赖宏包 ----------
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{ctex}
+\RequirePackage{geometry}
+\RequirePackage{setspace}
+\RequirePackage{array}
+\RequirePackage{tabularx}
+\RequirePackage{listings}
+\RequirePackage{xcolor}
+\RequirePackage{enumitem}
+\RequirePackage[breakable]{tcolorbox}
+\RequirePackage{graphicx}  % 支持插入图片
+\RequirePackage{url}       % 支持长链接自动换行
+
+% ---------- 页面边距（正文用） ----------
+\geometry{top=3cm, bottom=3cm, left=2.5cm, right=2.5cm}
+\pagestyle{empty}
+
+% ---------- 代码块全局样式 ----------
+\lstset{
+    language=Python,
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue},
+    commentstyle=\color{green!60!black},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    stepnumber=1,
+    frame=single,
+    breaklines=true,
+    captionpos=b,
+    literate={_}{\textunderscore}1,
+    backgroundcolor=\color{gray!10},
+}
+
+% ---------- 带标题的内容方框 ----------
+% 用法：
+%   \begin{labbox}{标题}{高度（已忽略，自动适应内容）}
+%       内容（可直接嵌套 lstlisting、enumerate 等）
+%   \end{labbox}
+%
+% 方框高度完全由内容决定，第二个参数保留仅为兼容旧写法，不起作用。
+
+\newenvironment{labbox}[2]{%
+    \begin{tcolorbox}[
+        arc=0pt,
+        outer arc=0pt,
+        boxrule=0.4pt,
+        colback=white,
+        colframe=black,
+        left=6pt, right=6pt,
+        top=6pt, bottom=6pt,
+        before skip=0pt,
+        after skip=8pt,
+        width=\textwidth,
+        breakable,
+    ]%
+    \noindent\textbf{#1}\par\vspace{0.2cm}%
+}{%
+    \end{tcolorbox}%
+}

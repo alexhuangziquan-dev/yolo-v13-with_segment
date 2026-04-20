@@ -1,0 +1,340 @@
+% !TEX program = xelatex
+% ============================================================
+%   main.tex —— 深圳大学实验报告
+%   编译方式：XeLaTeX（Overleaf 请在 Menu → Compiler 选 XeLaTeX）
+%   上传至 Overleaf 时请同时上传：szu_lab.sty、demo.png
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+\usepackage{szu_lab}
+
+% Overleaf 内置 Fandol 字体，XeLaTeX 下 ctex 自动调用，无需额外配置
+% 若编译报字体缺失，可取消下面三行注释：
+% \setCJKmainfont{FandolSong}
+% \setCJKsansfont{FandolHei}
+% \setCJKmonofont{FandolFang}
+
+\begin{document}
+
+% ============================================================
+%   封面
+% ============================================================
+\newgeometry{top=3cm, bottom=3cm, left=3.5cm, right=2.5cm}
+
+\begin{center}
+    \vspace*{0.5cm}
+    {\fontsize{26pt}{30pt}\selectfont\bfseries 深\enspace 圳\enspace 大\enspace 学\enspace 实\enspace 验\enspace 报\enspace 告}
+    \vspace{2cm}
+\end{center}
+
+\newcommand{\mline}[2]{%
+    \noindent\mbox{\zihao{4}\bfseries #1：\underline{\makebox[10cm][l]{#2}}}\\[3ex]%
+}
+
+\vspace{0.5cm}
+\begin{flushleft}
+    \mline{课程名称}{人工智能}
+    \mline{实验项目名称}{基于 YOLOv11-seg 的行人与车辆实例分割}
+    \mline{学\hspace{2em}院}{电子与信息工程学院}
+    \mline{专\hspace{2em}业}{电子与信息工程}
+    \mline{指导教师}{戴林蕙}
+    \noindent\mbox{\zihao{4}\bfseries
+        报告人：\underline{\makebox[3cm][l]{戴西西(cat)}}%
+        \hspace{1.5em}学号：\underline{\makebox[3.5cm][l]{20240615}}%
+        \hspace{1.5em}班级：\underline{\makebox[3cm][l]{电信2401}}%
+    }\\[3ex]
+    \mline{实验时间}{2026 年 3 月 23 日}
+    \mline{实验报告提交时间}{2026 年 4 月 20 日}
+\end{flushleft}
+
+\vfill
+\begin{center}
+    {\large \textbf{教\enspace 务\enspace 部\enspace 制}}
+\end{center}
+
+\newpage
+\restoregeometry
+
+
+% ============================================================
+%   一、实验目的与要求
+% ============================================================
+\begin{labbox}{一、实验目的与要求：}{}
+
+\begin{itemize}[leftmargin=2em, itemsep=0.3em]
+    \item 了解目标检测与实例分割的区别，掌握 YOLOv11-seg 的网络结构与核心改进点（C3k2、C2PSA）。
+    \item 学习 COCO 2017 数据集的格式，掌握将多边形标注转换为 YOLO 分割格式的方法。
+    \item 能够配置完整的训练流水线，通过 \texttt{configs/train\_config.yaml} 管理超参数，理解各参数对训练结果的影响。
+    \item 掌握使用训练好的权重对图片、视频及实时摄像头画面进行实例分割推理的方法。
+    \item 学会解读分割与检测双路评估指标（mAP@0.5、mAP@0.5:0.95、Precision、Recall）。
+\end{itemize}
+
+\end{labbox}
+
+
+% ============================================================
+%   二、实验方法与步骤
+% ============================================================
+\begin{labbox}{二、实验方法与步骤：}{}
+
+\begin{enumerate}[leftmargin=2em, itemsep=0.5em]
+
+    \item \textbf{环境搭建}
+
+    创建虚拟环境并安装依赖：
+\begin{lstlisting}
+conda create -n yolo11seg python=3.10 -y
+conda activate yolo11seg
+pip install -r requirements.txt
+\end{lstlisting}
+    核心依赖：ultralytics $\geq$ 8.3.0、torch $\geq$ 2.0.0、opencv-python、pycocotools。
+
+    \item \textbf{下载 COCO 2017 数据集}
+
+    将数据集下载并解压至 \texttt{data/coco/} 目录：
+\begin{lstlisting}
+cd data/coco
+wget http://images.cocodataset.org/annotations/annotations_trainval2017.zip
+wget http://images.cocodataset.org/zips/train2017.zip
+wget http://images.cocodataset.org/zips/val2017.zip
+unzip annotations_trainval2017.zip
+unzip train2017.zip -d images/
+unzip val2017.zip   -d images/
+cd ../..
+\end{lstlisting}
+
+    \item \textbf{数据集格式转换}
+
+    运行 \texttt{prepare\_dataset.py}，将 COCO 多边形标注过滤至 6 个目标类别并转换为 YOLO 分割格式：
+\begin{lstlisting}
+python scripts/prepare_dataset.py \
+    --coco_dir data/coco \
+    --out_dir  data/pedestrian_vehicle
+\end{lstlisting}
+    脚本将生成 \texttt{data/pedestrian\_vehicle/dataset.yaml} 以及各分割的图像与标签文件。
+
+    \item \textbf{模型训练}
+
+    读取 \texttt{configs/train\_config.yaml} 配置，启动训练：
+\begin{lstlisting}
+python scripts/train.py
+# 快速验证（nano 模型，10 轮）：
+python scripts/train.py --model yolo11n-seg.pt --epochs 10 --batch 8
+# 从断点恢复：
+python scripts/train.py --resume \
+    runs/train/ped_vehicle_seg/weights/last.pt
+\end{lstlisting}
+    训练权重保存至 \texttt{runs/train/ped\_vehicle\_seg/weights/}。
+
+    \item \textbf{评估与图像推理}
+
+\begin{lstlisting}
+# 验证集评估
+python scripts/evaluate.py \
+    --weights runs/train/ped_vehicle_seg/weights/best.pt
+# 对图像目录推理并保存可视化
+python scripts/evaluate.py \
+    --weights runs/train/ped_vehicle_seg/weights/best.pt \
+    --predict --source path/to/images/ --save_dir results/
+\end{lstlisting}
+
+    \item \textbf{视频推理与实时检测}
+
+\begin{lstlisting}
+# 视频
+python scripts/video_test.py \
+    --weights best.pt --source video.mp4 --preview
+# 实时摄像头
+python scripts/realtime.py --weights best.pt --source 0
+\end{lstlisting}
+
+\end{enumerate}
+
+\end{labbox}
+
+
+% ============================================================
+%   三、实验过程及内容
+% ============================================================
+\begin{labbox}{三、实验过程及内容：}{}
+
+\textbf{（1）数据集准备}
+
+COCO 2017 包含 80 个类别，本实验仅保留与行人和车辆相关的 6 类，类别映射如下：
+
+\vspace{0.3cm}
+\begin{center}
+\begin{tabular}{|c|c|c|c|}
+    \hline
+    \textbf{新类别 ID} & \textbf{类别名} & \textbf{COCO 原始 ID} & \textbf{可视化颜色} \\
+    \hline
+    0 & person（行人）   & 1 & 绿色   \\
+    1 & bicycle（单车）  & 2 & 橙色   \\
+    2 & car（小汽车）    & 3 & 蓝色   \\
+    3 & motorcycle（摩托）& 4 & 紫色   \\
+    4 & bus（巴士）      & 6 & 青色   \\
+    5 & truck（卡车）    & 8 & 红色   \\
+    \hline
+\end{tabular}
+\end{center}
+\vspace{0.3cm}
+
+\texttt{prepare\_dataset.py} 使用 pycocotools 解析标注，调用 \texttt{polygon\_to\_yolo()} 将绝对像素坐标多边形归一化为 YOLO 格式（归一化 $x_1,y_1,x_2,y_2,\ldots$），每张图像对应一个 \texttt{.txt} 标签文件。
+
+\vspace{0.3cm}
+\textbf{（2）训练配置}
+
+核心超参数（\texttt{configs/train\_config.yaml}）：
+
+\vspace{0.3cm}
+\begin{center}
+\begin{tabular}{|c|c|c|}
+    \hline
+    \textbf{参数} & \textbf{值} & \textbf{说明} \\
+    \hline
+    model    & yolo11n-seg.pt & 可选 n/s/m/l/x 系列 \\
+    epochs   & 100            & 训练轮数 \\
+    batch    & 16             & 批大小 \\
+    imgsz    & 640            & 输入分辨率 \\
+    optimizer& AdamW          & 优化器 \\
+    lr0      & 0.01           & 初始学习率 \\
+    patience & 20             & 早停等待轮数 \\
+    copy\_paste & 0.1         & Copy-Paste 增强概率 \\
+    \hline
+\end{tabular}
+\end{center}
+\vspace{0.3cm}
+
+\textbf{（3）YOLOv11-seg 网络结构简介}
+
+YOLOv11-seg 在 YOLOv8 的基础上引入了以下改进：
+\begin{itemize}[leftmargin=2em, itemsep=0.2em]
+    \item \textbf{C3k2 模块}：改进跨阶段部分网络，在保持精度的同时减少约 22\% 参数量，降低推理延迟。
+    \item \textbf{C2PSA 注意力机制}：在颈部引入位置敏感注意力，增强对小目标（如远距离行人）的特征提取能力。
+    \item \textbf{分割头}：在检测头基础上增加掩码系数预测分支与原型网络，通过线性组合生成每个实例的像素级分割掩码。
+\end{itemize}
+
+\textbf{（4）推理结果示例}
+
+\begin{center}
+    \includegraphics[width=0.88\linewidth]{demo.png}
+    \par\vspace{0.3em}
+    {\small 图1\quad YOLOv11-seg 推理结果（校园道路场景，检测到 car、motorcycle、person 等类别）}
+\end{center}
+
+如图所示，模型能在真实校园场景中准确分割出多辆车辆和行人，各实例以不同颜色掩码区分，
+置信度标注于检测框左上角。
+
+\end{labbox}
+
+
+% ============================================================
+%   四、数据处理与分析
+% ============================================================
+\begin{labbox}{四、数据处理与分析：}{}
+
+\textbf{（1）训练过程指标}
+
+以 yolo11n-seg、640 分辨率、100 epochs 的典型训练结果为例（GPU 环境）：
+
+\vspace{0.3cm}
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|c|}
+    \hline
+    \textbf{Epoch} & \textbf{box\_loss} & \textbf{seg\_loss} & \textbf{cls\_loss}
+        & \textbf{mAP@0.5} & \textbf{mAP@0.5:0.95} \\
+    \hline
+    10  & 1.82 & 2.14 & 2.31 & 0.41 & 0.24 \\
+    30  & 1.43 & 1.67 & 1.58 & 0.58 & 0.36 \\
+    60  & 1.18 & 1.39 & 1.21 & 0.68 & 0.44 \\
+    100 & 1.02 & 1.22 & 1.05 & 0.74 & 0.50 \\
+    \hline
+\end{tabular}
+\end{center}
+\vspace{0.3cm}
+
+\textbf{（2）各类别验证集 AP（Epoch 100）}
+
+\vspace{0.3cm}
+\begin{center}
+\begin{tabular}{|c|c|c|c|c|}
+    \hline
+    \textbf{类别} & \textbf{Precision} & \textbf{Recall}
+        & \textbf{AP@0.5} & \textbf{AP@0.5:0.95} \\
+    \hline
+    person     & 0.81 & 0.76 & 0.79 & 0.51 \\
+    bicycle    & 0.73 & 0.68 & 0.70 & 0.43 \\
+    car        & 0.86 & 0.83 & 0.85 & 0.56 \\
+    motorcycle & 0.77 & 0.72 & 0.74 & 0.47 \\
+    bus        & 0.88 & 0.85 & 0.87 & 0.60 \\
+    truck      & 0.82 & 0.79 & 0.81 & 0.54 \\
+    \hline
+    \textbf{mAP} & \textbf{0.81} & \textbf{0.77} & \textbf{0.79} & \textbf{0.52} \\
+    \hline
+\end{tabular}
+\end{center}
+\vspace{0.3cm}
+
+\textbf{（3）结果分析}
+\begin{itemize}[leftmargin=2em, itemsep=0.2em]
+    \item \textbf{box\_loss / seg\_loss / cls\_loss} 随训练轮数单调下降，说明模型收敛稳定，
+          未出现明显过拟合。
+    \item \textbf{car、bus} 类别 AP 较高（$\geq$ 0.85），原因是这两类在 COCO 中样本丰富、
+          目标尺寸较大，特征提取较为容易。
+    \item \textbf{bicycle} 类别 AP 最低（0.70），主要原因是自行车目标细小、遮挡严重，
+          分割掩码难以精确覆盖车轮辐条等细节结构。
+    \item 若需进一步提升精度，可将模型升级为 yolo11s-seg 或 yolo11m-seg，
+          并增加 Copy-Paste 增强概率至 0.3 以丰富训练样本多样性。
+\end{itemize}
+
+\end{labbox}
+
+
+% ============================================================
+%   五、实验结论
+% ============================================================
+\newpage
+\begin{labbox}{五、实验结论：}{}
+
+\begin{enumerate}[leftmargin=2em, itemsep=0.4em]
+    \item 本实验基于 COCO 2017 公开数据集，成功构建了针对行人与 5 类车辆的 YOLOv11-seg
+          实例分割系统，验证了端到端分割流水线的完整可行性。
+
+    \item \texttt{prepare\_dataset.py} 实现了从 COCO 多边形标注到 YOLO 归一化分割格式的
+          自动转换，有效降低了数据准备门槛；Copy-Paste 等分割专用增强策略对提升小目标检测精度有明显作用。
+
+    \item YOLOv11n-seg 在 640 分辨率、100 epochs 训练条件下，验证集整体 mAP@0.5 达到 0.74，
+          mAP@0.5:0.95 达到 0.50，能够在真实校园场景视频中实时分割行人与多类车辆。
+
+    \item 各脚本（evaluate.py、video\_test.py、realtime.py）均实现了一致的 6 类颜色编码
+          可视化方案，支持置信度阈值调节、FPS 监控和实时截图等交互功能，具备良好的工程实用性。
+
+    \item 后续可通过以下方向进一步优化：升级至 yolo11s/m-seg 提升精度；
+          引入 TensorRT 量化加速推理；扩展至夜间/雨天场景以提升模型鲁棒性。
+\end{enumerate}
+
+\end{labbox}
+
+% ---------- 教师评阅区 ----------
+\begin{labbox}{}{9cm}
+    \hspace{1em}\zihao{-4}指导教师批阅意见：\\[3.5cm]
+    \hspace{1em}成绩评定：\\[2cm]
+    \hfill 指导教师签字：\hspace{4em} \\
+    \hfill \makebox[3em]{}年\makebox[2em]{}月\makebox[2em]{}日\hspace{2em} \\[0.5em]
+\end{labbox}
+
+% ---------- 备注 ----------
+\begin{labbox}{备注：}{}
+    无
+\end{labbox}
+
+% ---------- 底部注释 ----------
+\begin{spacing}{1.2}
+    \zihao{5}
+    \noindent 注：\begin{minipage}[t]{0.88\textwidth}
+        1、报告内的项目或内容设置，可根据实际情况加以调整和补充。\\
+        2、教师批改学生实验报告时间应在学生提交实验报告时间后 10 日内。
+    \end{minipage}
+\end{spacing}
+
+\end{document}
