@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(pip3 --version)",
+      "Bash(python -m py_compile scripts/prepare_dataset.py)",
+      "Bash(python -m py_compile scripts/train.py)",
+      "Bash(python -m py_compile scripts/evaluate.py)",
+      "Bash(python -m py_compile scripts/video_test.py)",
+      "Bash(python -m py_compile scripts/realtime.py)"
+    ]
+  }
+}
