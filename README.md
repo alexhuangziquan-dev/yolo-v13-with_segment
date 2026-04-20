@@ -4,7 +4,6 @@ https://github.com/user-attachments/assets/6b9912e2-7ddf-4d50-a31a-e0480345834e
 
 
 
-![推理效果示例](results/demo.png)
 
 基于 YOLOv11-seg 和 COCO 2017 数据集，识别行人与 5 类车辆的完整训练/推理项目。
 
