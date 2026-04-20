@@ -1,7 +1,5 @@
 # YOLOv11-seg 行人与车辆实例分割
 
-<video src="results/segmented_output.mp4" controls width="100%"></video>
-
 ![推理效果示例](results/demo.png)
 
 基于 YOLOv11-seg 和 COCO 2017 数据集，识别行人与 5 类车辆的完整训练/推理项目。
